@@ -8,11 +8,17 @@
 import AVFoundation
 import UIKit
 
+protocol CaptureViewControllerDelegate: AnyObject {
+    func capture(image: UIImage)
+}
+
 class CaptureViewController: UIViewController {
     
     enum Constants {
         static let maxImageFaceDetection = 10
     }
+    
+    weak var delegate: CaptureViewControllerDelegate?
 
     var previewView: PreviewView = PreviewView(frame: .zero)
     var buttonTake = UIButton(frame: .zero)
@@ -32,6 +38,15 @@ class CaptureViewController: UIViewController {
     var camCIImage: CIImage?
     
     let lock = NSLock()
+    
+    init(delegate: CaptureViewControllerDelegate? = nil) {
+        self.delegate = delegate
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -205,6 +220,46 @@ class CaptureViewController: UIViewController {
     
     @objc func takeButtonClicked(_ button : UIButton) {
         // TODO: with camCIImage
+        guard let camCIImage, let faces = FaceDetector.detectFace(withCIImage: camCIImage) else {
+            return
+        }
+        
+        var minX: CGFloat = camCIImage.extent.width
+        var maxX: CGFloat = 0
+        var minY: CGFloat = camCIImage.extent.height
+        var maxY: CGFloat = 0
+        
+        if faces.count == 1, let face = faces.first {
+            let bounds = face.bounds
+            minX = max(0, bounds.center.x - bounds.width)
+            maxX = min(camCIImage.extent.width, bounds.center.x + bounds.width)
+            minY = max(0, bounds.center.y - bounds.height)
+            maxY = min(camCIImage.extent.height, bounds.center.y + bounds.height)
+            
+            let croppedImage = camCIImage.cropped(to: CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY))
+            let image = UIImage(ciImage: croppedImage)
+            delegate?.capture(image: image)
+        } else {
+            faces.forEach { face in
+                if let face = face as? CIFaceFeature {
+                    let bounds = face.bounds
+                    minX = min(minX, bounds.origin.x)
+                    maxX = max(maxX, bounds.origin.x + bounds.width)
+                    minY = min(minY, bounds.origin.y)
+                    maxY = max(maxY, bounds.origin.y + bounds.height)
+                }
+            }
+            let length = max(maxX - minX, maxY - minY)
+            let center = CGPoint(x: (minX + maxX)/2, y: (minY + maxY)/2)
+            
+            let boundOrigin = CGPoint(x: max(0, center.x - length * 1.2 / 2), y: max(0, center.y - length * 1.2 / 2))
+            let size = CGSize(width: length * 1.2, height: length * 1.2)
+            
+            let croppedImage = camCIImage.cropped(to: CGRect(origin: boundOrigin, size: size))
+            let image = UIImage(ciImage: croppedImage)
+            delegate?.capture(image: image)
+        }
+        dismiss(animated: true)
     }
 }
 

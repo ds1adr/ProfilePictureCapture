@@ -46,13 +46,20 @@ class DemoViewController: UIViewController {
             button.topAnchor.constraint(equalTo: imageView.bottomAnchor, constant: 16),
             button.centerXAnchor.constraint(equalTo: view.centerXAnchor)
         ])
+        
+        imageView.contentMode = .scaleAspectFill
     }
     
     @objc func captureButtonClicked(_ sender: UIButton) {
-        let captureViewController = CaptureViewController()
+        let captureViewController = CaptureViewController(delegate: self)
         captureViewController.modalPresentationStyle = .fullScreen
         
         present(captureViewController, animated: true)
     }
 }
 
+extension DemoViewController: CaptureViewControllerDelegate {
+    func capture(image: UIImage) {
+        imageView.image = image
+    }
+}
